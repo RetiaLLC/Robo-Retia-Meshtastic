@@ -1,0 +1,110 @@
+name: Compile Nugget S2 RFM95
+on: 
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libtinfo5
+
+      - name: Get latest meshtastic version 
+        id: latest_meshtastic_tag
+        run: |
+          result=$(curl -sL https://api.github.com/repos/meshtastic/firmware/releases/latest | jq -r '.tag_name' )
+          echo "result=$result" >> $GITHUB_OUTPUT
+
+      - name: Install platformIO cli
+        run: python3 -m pip install -U platformio
+      
+      - name: Install meshtastic firmware
+        run: git clone https://github.com/meshtastic/firmware /home/runner/meshtastic
+      
+      # 1. Install the platform
+      - name: Install PlatformIO Platforms
+        run: pio platform install espressif32
+      
+      # 2. Neutralize mklittlefs
+      - name: Neutralize mklittlefs
+        run: |
+          TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
+          if [ -z "$TOOL_PATH" ]; then
+             # Force install if not found
+             pio pkg install --global --tool "platformio/tool-mklittlefs"
+             TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
+          fi
+          
+          echo "Replacing tool at: $TOOL_PATH"
+          rm "$TOOL_PATH"
+          cat << 'EOF' > "$TOOL_PATH"
+          #!/bin/bash
+          for last; do true; done
+          echo "Dummy filesystem image" > "$last"
+          exit 0
+          EOF
+          chmod +x "$TOOL_PATH"
+
+      - name: Move retia board files 
+        run: |
+          cp -r ${{ github.workspace }}/variants/retia-nibble/nugget-s2-rfm95 /home/runner/meshtastic/variants/
+          mkdir -p /home/runner/meshtastic/boards
+          find ${{ github.workspace }}/variants/retia-nibble/ -name "*.json" -exec cp {} /home/runner/meshtastic/boards/ \;
+      
+      - name: Build nugget-s2-rfm95
+        run: |
+          target="nugget-s2-rfm95"
+          
+          # Fix environment name mismatch
+          if [ -f "/home/runner/meshtastic/variants/$target/platformio.ini" ]; then
+            echo "" >> /home/runner/meshtastic/platformio.ini
+            sed "s/\[env:.*\]/[env:$target]/" "/home/runner/meshtastic/variants/$target/platformio.ini" >> /home/runner/meshtastic/platformio.ini
+          fi
+
+          mkdir -p /home/runner/dists
+          
+          # THE FIX: Tell PlatformIO to strip and undefine the LED_BUILTIN macro
+          export PLATFORMIO_BUILD_UNFLAGS="-DLED_BUILTIN"
+          export PLATFORMIO_BUILD_FLAGS="-I variants/$target -ULED_BUILTIN"
+          export PLATFORMIO_BOARD_BUILD_VARIANT="$target"
+
+          echo "Building target: $target"
+          pio run --project-dir /home/runner/meshtastic/ -e "$target"
+
+          # 3. Capture the correctly named binary
+          build_dir="/home/runner/meshtastic/.pio/build/${target}"
+          
+          firmware_file=$(find "$build_dir" -name "firmware*.bin" | head -n 1)
+          
+          if [ -f "$firmware_file" ]; then
+            echo "Build Success! Found binary: $firmware_file"
+            cd "${build_dir}"
+            zip -j "/home/runner/dists/${target}.zip" *.bin
+          else
+            echo "Build Failed: No firmware binary found."
+            ls -R "$build_dir"
+            exit 1
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nugget-s2-rfm95-firmware
+          path: /home/runner/dists/
+
+      # 4. Unified, non-crashing release step
+      - name: Create Release and Upload Binaries
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.latest_meshtastic_tag.outputs.result }}
+          name: Retia binaries for Meshtastic ${{ steps.latest_meshtastic_tag.outputs.result }}
+          body: |
+            Automated build for `nugget-s2-rfm95` tracking Meshtastic release ${{ steps.latest_meshtastic_tag.outputs.result }}.
+          files: /home/runner/dists/*
+          draft: false
+          prerelease: false
