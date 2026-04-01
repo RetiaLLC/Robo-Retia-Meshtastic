@@ -28,7 +28,7 @@ jobs:
       - name: Install PlatformIO Platforms
         run: pio platform install espressif32
       
-      # 2. THE FIX: Replace broken mklittlefs with dummy script
+      # 2. Neutralize mklittlefs
       - name: Neutralize mklittlefs
         run: |
           TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
@@ -65,16 +65,18 @@ jobs:
           fi
 
           mkdir -p /home/runner/dists
-          export PLATFORMIO_BUILD_FLAGS="-I variants/$target"
+          
+          # THE FIX: Tell PlatformIO to strip and undefine the LED_BUILTIN macro
+          export PLATFORMIO_BUILD_UNFLAGS="-DLED_BUILTIN"
+          export PLATFORMIO_BUILD_FLAGS="-I variants/$target -ULED_BUILTIN"
           export PLATFORMIO_BOARD_BUILD_VARIANT="$target"
 
           echo "Building target: $target"
           pio run --project-dir /home/runner/meshtastic/ -e "$target"
 
-          # 3. FINAL FIX: Capture the correctly named binary
+          # 3. Capture the correctly named binary
           build_dir="/home/runner/meshtastic/.pio/build/${target}"
           
-          # Find ANY .bin file that starts with firmware
           firmware_file=$(find "$build_dir" -name "firmware*.bin" | head -n 1)
           
           if [ -f "$firmware_file" ]; then
@@ -93,23 +95,16 @@ jobs:
           name: nibble-esp32-firmware
           path: /home/runner/dists/
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+      # 4. Unified, non-crashing release step
+      - name: Create Release and Upload Binaries
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.latest_meshtastic_tag.outputs.result }}
-          release_name: Retia binaries for Meshtastic ${{ steps.latest_meshtastic_tag.outputs.result }}
+          name: Retia binaries for Meshtastic ${{ steps.latest_meshtastic_tag.outputs.result }}
           body: |
-            Compiled nibble-esp32 using meshtastic release ${{ steps.latest_meshtastic_tag.outputs.result }}
+            Automated build for `nibble-esp32` tracking Meshtastic release ${{ steps.latest_meshtastic_tag.outputs.result }}.
+          files: /home/runner/dists/*
           draft: false
           prerelease: false
-
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: /home/runner/dists/*
-          file_glob: true
-          tag: ${{ steps.latest_meshtastic_tag.outputs.result }}
