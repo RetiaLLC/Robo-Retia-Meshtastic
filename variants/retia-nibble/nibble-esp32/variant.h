@@ -17,7 +17,8 @@
 #define I2C_SDA PIN_I2C0_SDA // I2C pins for this board
 #define I2C_SCL PIN_I2C0_SCL
 
-#define LED_PIN PIN_LED_DEBUG // If defined we will blink this LED
+#define LED_POWER PIN_LED_DEBUG // Replaces LED_PIN for the modern Meshtastic heartbeat
+#define LED_STATE_ON 1          // Tells Meshtastic the LED circuit is Active-High
 
 #define HAS_NEOPIXEL                              // Enable the use of neopixels
 #define NEOPIXEL_COUNT 1                          // How many neopixels are connected
