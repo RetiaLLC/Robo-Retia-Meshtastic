@@ -1,0 +1,115 @@
+name: Compile Nibble ESP32
+on: 
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libtinfo5
+
+      - name: Get latest meshtastic version 
+        id: latest_meshtastic_tag
+        run: |
+          result=$(curl -sL https://api.github.com/repos/meshtastic/firmware/releases/latest | jq -r '.tag_name' )
+          echo "result=$result" >> $GITHUB_OUTPUT
+
+      - name: Install platformIO cli
+        run: python3 -m pip install -U platformio
+      
+      - name: Install meshtastic firmware
+        run: git clone https://github.com/meshtastic/firmware /home/runner/meshtastic
+      
+      # 1. Install the platform
+      - name: Install PlatformIO Platforms
+        run: pio platform install espressif32
+      
+      # 2. THE FIX: Replace broken mklittlefs with dummy script
+      - name: Neutralize mklittlefs
+        run: |
+          TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
+          if [ -z "$TOOL_PATH" ]; then
+             # Force install if not found
+             pio pkg install --global --tool "platformio/tool-mklittlefs"
+             TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
+          fi
+          
+          echo "Replacing tool at: $TOOL_PATH"
+          rm "$TOOL_PATH"
+          cat << 'EOF' > "$TOOL_PATH"
+          #!/bin/bash
+          for last; do true; done
+          echo "Dummy filesystem image" > "$last"
+          exit 0
+          EOF
+          chmod +x "$TOOL_PATH"
+
+      - name: Move retia board files 
+        run: |
+          cp -r ${{ github.workspace }}/variants/retia-nibble/nibble-esp32 /home/runner/meshtastic/variants/
+          mkdir -p /home/runner/meshtastic/boards
+          find ${{ github.workspace }}/variants/retia-nibble/ -name "*.json" -exec cp {} /home/runner/meshtastic/boards/ \;
+      
+      - name: Build nibble-esp32
+        run: |
+          target="nibble-esp32"
+          
+          # Fix environment name mismatch
+          if [ -f "/home/runner/meshtastic/variants/$target/platformio.ini" ]; then
+            echo "" >> /home/runner/meshtastic/platformio.ini
+            sed "s/\[env:.*\]/[env:$target]/" "/home/runner/meshtastic/variants/$target/platformio.ini" >> /home/runner/meshtastic/platformio.ini
+          fi
+
+          mkdir -p /home/runner/dists
+          export PLATFORMIO_BUILD_FLAGS="-I variants/$target"
+          export PLATFORMIO_BOARD_BUILD_VARIANT="$target"
+
+          echo "Building target: $target"
+          pio run --project-dir /home/runner/meshtastic/ -e "$target"
+
+          # 3. FINAL FIX: Capture the correctly named binary
+          build_dir="/home/runner/meshtastic/.pio/build/${target}"
+          
+          # Find ANY .bin file that starts with firmware
+          firmware_file=$(find "$build_dir" -name "firmware*.bin" | head -n 1)
+          
+          if [ -f "$firmware_file" ]; then
+            echo "Build Success! Found binary: $firmware_file"
+            cd "${build_dir}"
+            zip -j "/home/runner/dists/${target}.zip" *.bin
+          else
+            echo "Build Failed: No firmware binary found."
+            ls -R "$build_dir"
+            exit 1
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nibble-esp32-firmware
+          path: /home/runner/dists/
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.latest_meshtastic_tag.outputs.result }}
+          release_name: Retia binaries for Meshtastic ${{ steps.latest_meshtastic_tag.outputs.result }}
+          body: |
+            Compiled nibble-esp32 using meshtastic release ${{ steps.latest_meshtastic_tag.outputs.result }}
+          draft: false
+          prerelease: false
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: /home/runner/dists/*
+          file_glob: true
+          tag: ${{ steps.latest_meshtastic_tag.outputs.result }}
