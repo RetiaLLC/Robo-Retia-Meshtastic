@@ -7,14 +7,19 @@
 #define LED_STATE_ON 1 // Tells Meshtastic the LED circuit is Active-High
 
 #define HAS_NEOPIXEL                         // Enable the use of neopixels
-#define NEOPIXEL_COUNT 1                     // Fixed: v6 Schematic shows 1 WS2812B chip
+#define NEOPIXEL_COUNT 1                     // v6 Schematic shows 1 WS2812B chip
 #define NEOPIXEL_DATA 12                     // gpio pin used to send data to the neopixels
 #define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800) // type of neopixels in use
 
 #define ENABLE_AMBIENTLIGHTING
 
-#define BUTTON_PIN 7 // If defined, this will be used for user button presses
-#define BUTTON_NEED_PULLUP
+// --- Button Definitions ---
+#define BUTTON_PIN 7          // Primary Action/Wake (ESP32-S2 BOOT button)
+#define BUTTON_UP_PIN 9       // D-Pad Up
+#define BUTTON_DOWN_PIN 18    // D-Pad Down
+#define BUTTON_LEFT_PIN 11    // D-Pad Left
+//#define BUTTON_RIGHT_PIN 7    // D-Pad Right as Primary
+#define BUTTON_NEED_PULLUP    // Required for physical tactile switches
 
 #define USE_RF95
 #define LORA_SCK 4   // Fixed for v6.0
