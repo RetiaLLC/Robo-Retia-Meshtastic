@@ -16,10 +16,10 @@
 
 #define LED_PIN PIN_LED_DEBUG // If defined we will blink this LED
 
-// #define HAS_NEOPIXEL                              // Enable the use of neopixels
-// #define NEOPIXEL_COUNT 1                          // How many neopixels are connected
-// #define NEOPIXEL_DATA PIN_WEMOS_S3_MINI_LED_DATA  // gpio pin used to send data to the neopixels
-// #define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)      // type of neopixels in use
+#define HAS_NEOPIXEL 1                            // Enable the use of neopixels
+#define NEOPIXEL_COUNT 1                          // The Waveshare has exactly 1 NeoPixel
+#define NEOPIXEL_DATA 16                          // Waveshare RP2040-Zero built-in WS2812 pin
+#define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)      // Standard WS2812 protocol
 
 // #define ENABLE_AMBIENTLIGHTING
 
