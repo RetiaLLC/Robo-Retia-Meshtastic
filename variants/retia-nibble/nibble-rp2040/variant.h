@@ -1,16 +1,14 @@
 // Pin definitions to match schematics drawing
-#define PIN_LED_DEBUG 1
-#define PIN_CS_ACCESSORY 2
-#define PIN_I2C0_SCL 4
-#define PIN_I2C0_SDA 5
+#define PIN_LED_DEBUG 0
+#define PIN_CS_ACCESSORY 1
+#define PIN_I2C0_SDA 4
+#define PIN_I2C0_SCL 5
 #define PIN_SPI_SCK 10
 #define PIN_SPI_MOSI 11
 #define PIN_SPI_MISO 12
 #define PIN_SPI_CS 13
 #define PIN_RFM_IRQ 14
 #define PIN_RFM_RESET 15
-#define PIN_UART_TX 43
-#define PIN_UART_RX 44
 // End pin definitions
 
 #define I2C_SDA PIN_I2C0_SDA // I2C pins for this board
@@ -27,8 +25,6 @@
 
 // #define BUTTON_PIN 0 // If defined, this will be used for user button presses
 // #define BUTTON_NEED_PULLUP
-
-#define ARDUINO_ARCH_AVR
 
 #define HAS_CPU_SHUTDOWN 1
 
