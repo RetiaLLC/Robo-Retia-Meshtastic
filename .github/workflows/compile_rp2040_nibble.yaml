@@ -29,7 +29,7 @@ jobs:
       - name: Install PlatformIO Platforms
         run: pio platform install raspberrypi
       
-      # Neutralize mklittlefs to prevent build crashes
+      # Neutralize mklittlefs with a proper empty flash block
       - name: Neutralize mklittlefs
         run: |
           TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
@@ -42,8 +42,22 @@ jobs:
           rm -f "$TOOL_PATH"
           cat << 'EOF' > "$TOOL_PATH"
           #!/bin/bash
+          
+          # Find output file (last argument)
           for last; do true; done
-          echo "Dummy filesystem image" > "$last"
+          
+          # Find size argument (-s)
+          size=4096 # Fallback size
+          while [[ $# -gt 0 ]]; do
+            if [[ "$1" == "-s" ]]; then
+              size=$(($2)) # Converts hex to decimal automatically in bash
+            fi
+            shift
+          done
+          
+          # Generate an empty flash block (0xFF) of the correct size.
+          # This prevents UF2 partition misalignment that causes RP2040 core panics.
+          head -c "$size" /dev/zero | tr '\0' '\377' > "$last"
           exit 0
           EOF
           chmod +x "$TOOL_PATH"
@@ -74,7 +88,7 @@ jobs:
           echo "Building target: $target"
           pio run --project-dir /home/runner/meshtastic/ -e "$target"
 
-          # 3. Capture the binary - prioritizing the .uf2 file for RP2040
+          # Capture the binary - prioritizing the .uf2 file for RP2040
           build_dir="/home/runner/meshtastic/.pio/build/${target}"
           
           firmware_file=$(find "$build_dir" -name "firmware*.uf2" | head -n 1)
@@ -95,7 +109,6 @@ jobs:
           name: nibble-rp2040-firmware
           path: /home/runner/dists/
 
-      # 4. Create the GitHub release
       - name: Create Release and Upload Binaries
         uses: softprops/action-gh-release@v2
         env:
