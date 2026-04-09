@@ -1,6 +1,6 @@
-// Pin definitions to match schematics drawing
-#define PIN_LED_DEBUG 0
-#define PIN_CS_ACCESSORY 1
+// Pin definitions exactly matching the U3 schematic drawing
+#define PIN_LED_DEBUG 1
+#define PIN_CS_ACCESSORY 2
 #define PIN_I2C0_SDA 4
 #define PIN_I2C0_SCL 5
 #define PIN_SPI_SCK 10
@@ -14,8 +14,11 @@
 #define I2C_SDA PIN_I2C0_SDA // I2C pins for this board
 #define I2C_SCL PIN_I2C0_SCL
 
+// --- Standard LED (Heartbeat) ---
 #define LED_PIN PIN_LED_DEBUG // If defined we will blink this LED
+#define LED_STATE_ON 1        // Set to 1 because the LED is wired to GND (active-high)
 
+// --- NeoPixel (Rich Status) ---
 #define HAS_NEOPIXEL 1                            // Enable the use of neopixels
 #define NEOPIXEL_COUNT 1                          // The Waveshare has exactly 1 NeoPixel
 #define NEOPIXEL_DATA 16                          // Waveshare RP2040-Zero built-in WS2812 pin
