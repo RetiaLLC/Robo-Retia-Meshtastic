@@ -24,10 +24,11 @@
 #define LED_STATE_ON 1
 
 // --- RGB NeoPixel ---
-#define HAS_NEOPIXEL 1
+#define HAS_NEOPIXEL 
 #define NEOPIXEL_COUNT 1
 #define NEOPIXEL_DATA PIN_NEOPIXEL_DATA
 #define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)
+#define ENABLE_AMBIENT_LIGHTING
 
 // --- Battery Telemetry (Uncomment when voltage divider is soldered) ---
 // #define BATTERY_PIN PIN_CS_ACCESSORY // Assumes you repurpose GPIO 2 for the divider
