@@ -1,0 +1,123 @@
+name: Compile Nibble RP2350
+on: 
+  schedule:
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libtinfo5
+
+      - name: Get latest meshtastic version 
+        id: latest_meshtastic_tag
+        run: |
+          result=$(curl -sL https://api.github.com/repos/meshtastic/firmware/releases/latest | jq -r '.tag_name' )
+          echo "result=$result" >> $GITHUB_OUTPUT
+
+      - name: Install platformIO cli
+        run: python3 -m pip install -U platformio
+      
+      - name: Install meshtastic firmware
+        run: git clone https://github.com/meshtastic/firmware /home/runner/meshtastic
+      
+      # Install the community platform that supports RP2350
+      - name: Install PlatformIO Platforms
+        run: pio platform install https://github.com/maxgerhardt/platform-raspberrypi.git
+      
+      # Neutralize mklittlefs with a proper empty flash block
+      - name: Neutralize mklittlefs
+        run: |
+          TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
+          if [ -z "$TOOL_PATH" ]; then
+             pio pkg install --global --tool "platformio/tool-mklittlefs"
+             TOOL_PATH=$(find /home/runner/.platformio/packages -name "mklittlefs" -type f | head -n 1)
+          fi
+          
+          echo "Replacing tool at: $TOOL_PATH"
+          rm -f "$TOOL_PATH"
+          cat << 'EOF' > "$TOOL_PATH"
+          #!/bin/bash
+          
+          # Find output file (last argument)
+          for last; do true; done
+          
+          # Find size argument (-s)
+          size=4096 # Fallback size
+          while [[ $# -gt 0 ]]; do
+            if [[ "$1" == "-s" ]]; then
+              size=$(($2)) # Converts hex to decimal automatically in bash
+            fi
+            shift
+          done
+          
+          # Generate an empty flash block (0xFF) of the correct size.
+          # This prevents UF2 partition misalignment that causes core panics.
+          head -c "$size" /dev/zero | tr '\0' '\377' > "$last"
+          exit 0
+          EOF
+          chmod +x "$TOOL_PATH"
+
+      # Move specifically the RP2350 variant files
+      - name: Move retia board files 
+        run: |
+          cp -r ${{ github.workspace }}/variants/retia-nibble/nibble-rp2350 /home/runner/meshtastic/variants/ || true
+          mkdir -p /home/runner/meshtastic/boards
+          find ${{ github.workspace }}/variants/retia-nibble/ -name "*rp2350*.json" -exec cp {} /home/runner/meshtastic/boards/ \;
+      
+      - name: Build nibble-rp2350
+        run: |
+          target="nibble-rp2350"
+          
+          # Fix environment name mismatch
+          if [ -f "/home/runner/meshtastic/variants/$target/platformio.ini" ]; then
+            echo "" >> /home/runner/meshtastic/platformio.ini
+            sed "s/\[env:.*\]/[env:$target]/" "/home/runner/meshtastic/variants/$target/platformio.ini" >> /home/runner/meshtastic/platformio.ini
+          fi
+
+          mkdir -p /home/runner/dists
+          
+          export PLATFORMIO_BUILD_UNFLAGS="-DLED_BUILTIN"
+          export PLATFORMIO_BUILD_FLAGS="-I variants/$target -ULED_BUILTIN"
+          export PLATFORMIO_BOARD_BUILD_VARIANT="$target"
+
+          echo "Building target: $target"
+          pio run --project-dir /home/runner/meshtastic/ -e "$target"
+
+          # Capture the binary - prioritizing the .uf2 file
+          build_dir="/home/runner/meshtastic/.pio/build/${target}"
+          
+          firmware_file=$(find "$build_dir" -name "firmware*.uf2" | head -n 1)
+          
+          if [ -n "$firmware_file" ]; then
+            echo "Build Success! Found binary: $firmware_file"
+            cd "${build_dir}"
+            zip -j "/home/runner/dists/${target}.zip" *.uf2 *.bin 2>/dev/null || true
+          else
+            echo "Build Failed: No firmware binary found."
+            ls -R "$build_dir"
+            exit 1
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nibble-rp2350-firmware
+          path: /home/runner/dists/
+
+      - name: Create Release and Upload Binaries
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.latest_meshtastic_tag.outputs.result }}
+          name: Retia RP2350 binary for Meshtastic ${{ steps.latest_meshtastic_tag.outputs.result }}
+          body: |
+            Automated build for `nibble-rp2350` tracking Meshtastic release ${{ steps.latest_meshtastic_tag.outputs.result }}.
+          files: /home/runner/dists/*
+          draft: false
+          prerelease: false
