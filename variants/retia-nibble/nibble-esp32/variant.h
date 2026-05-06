@@ -20,13 +20,17 @@
 #define I2C_SCL PIN_I2C0_SCL
 
 // --- Heartbeat Status LED ---
-#define LED_PIN PIN_LED_DEBUG
+#define LED_POWER 1
 #define LED_STATE_ON 1
 
+// --- Performance & Feature Defaults ---
+#define MESHMODULE_MIN_BROADCAST_DELAY_MS (5 * 1000)
+#define AMBIENT_LIGHTING_AUTO_START
+
 // --- RGB NeoPixel ---
-#define HAS_NEOPIXEL 
+#define HAS_NEOPIXEL 1
 #define NEOPIXEL_COUNT 1
-#define NEOPIXEL_DATA PIN_NEOPIXEL_DATA
+#define NEOPIXEL_DATA 21
 #define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)
 #define ENABLE_AMBIENT_LIGHTING
 

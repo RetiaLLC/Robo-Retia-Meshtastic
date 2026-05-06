@@ -1,1 +1,20 @@
-settings.json
+# Logs
+*_log.txt
+flash_log*.txt
+log.txt
+
+# PlatformIO / Meshtastic Firmware
+meshtastic-firmware/
+.pio/
+boards/
+
+# System / IDE
+.vscode/
+.DS_Store
+__MACOSX/
+fp-info-cache
+*.lck
+
+# Temp / Release Build Folders
+release_package/
+nibble_zero_connect_v2-backups/

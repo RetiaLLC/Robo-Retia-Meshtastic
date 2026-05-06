@@ -14,7 +14,15 @@
 #define SX126X_DIO2_AS_RF_SWITCH
 #define SX126X_DIO3_TCXO_VOLTAGE 1.8
 #endif
-// #define PIN_LED1 39
+#define LED_POWER 39
+#define LED_STATE_ON 1
+
+// --- NeoPixel (Ambient Lighting) ---
+#define HAS_NEOPIXEL 1
+#define NEOPIXEL_COUNT 1
+#define NEOPIXEL_DATA 21
+#define NEOPIXEL_TYPE (NEO_GRB + NEO_KHZ800)
+
 #define BUTTON_PIN 1
 #define BUTTON_NEED_PULLUP
 
